@@ -60,14 +60,18 @@ public:
     auto matching_subscriber = get_subscriber_by_params(params);
     subscriber_handle handle = {nullptr, params, handler, client_id, next_handler_id_++, rclcpp::Time(0, 0, RCL_ROS_TIME)};
 
-    auto info = node_->get_publishers_info_by_topic(params.topic);
     rclcpp::QoS qos(params.history_depth);
+    auto info = node_->get_publishers_info_by_topic(params.topic);
     if (!info.empty()) {
       auto rmw_qos = info[0].qos_profile().get_rmw_qos_profile();
       qos.reliability(rmw_qos.reliability);
       qos.durability(rmw_qos.durability);
       qos.history(rmw_qos.history);
       qos.liveliness(rmw_qos.liveliness);
+    } else {
+      // no publishers yet, use an all-compatible QoS
+      qos.reliability(RMW_QOS_POLICY_RELIABILITY_BEST_EFFORT);
+      qos.durability(RMW_QOS_POLICY_DURABILITY_VOLATILE);
     }
 
     bool is_transient_local = qos.durability() == rclcpp::DurabilityPolicy::TransientLocal;

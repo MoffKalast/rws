@@ -182,13 +182,18 @@ bool ClientHandler::subscribe_to_topic(const json & msg, json & response)
   }
 
   std::string topic = msg["topic"];
-  std::map<std::string, std::vector<std::string>> topics = node_->get_topic_names_and_types();
-  if (topics.find(topic) == topics.end()) {
-    response["error"] = "Topic " + topic + " not found";
-    response["result"] = false;
-    RCLCPP_ERROR(
-      get_logger(), "Failed to subscribe to topic: %s", response["error"].dump().c_str());
-    return true;
+  std::string sub_type;
+  if (msg.contains("type") && msg["type"].is_string()) {
+    sub_type = msg["type"];
+  } else {
+    std::map<std::string, std::vector<std::string>> topics = node_->get_topic_names_and_types();
+    if (topics.find(topic) == topics.end()) {
+      response["error"] = "Topic " + topic + " not found and no type specified";
+      response["result"] = false;
+      RCLCPP_ERROR(get_logger(), "Failed to subscribe to topic: %s", response["error"].dump().c_str());
+      return true;
+    }
+    sub_type = topics[topic][0];
   }
   size_t history_depth = 10;
   if (msg.contains("history_depth") && msg["history_depth"].is_number()) {
@@ -204,7 +209,6 @@ bool ClientHandler::subscribe_to_topic(const json & msg, json & response)
   std::string compression =
     (!msg.contains("compression") || !msg["compression"].is_string()) ? "none" : msg["compression"];
 
-  auto sub_type = topics[topic][0];
   if (subscriptions_.count(topic) == 0) {
     
     topic_params params(topic, sub_type, history_depth, compression, throttle_rate);
