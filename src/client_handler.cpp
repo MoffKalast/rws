@@ -182,19 +182,33 @@ bool ClientHandler::subscribe_to_topic(const json & msg, json & response)
   }
 
   std::string topic = msg["topic"];
+  auto topics = node_->get_topic_names_and_types();
+  const auto topic_it = topics.find(topic);
   std::string sub_type;
   if (msg.contains("type") && msg["type"].is_string()) {
-    sub_type = msg["type"];
+    sub_type = rws::message_type_to_ros2_style(msg["type"]);
+
+    if (topic_it != topics.end()) {
+      const auto & discovered_types = topic_it->second;
+
+      if (std::find(discovered_types.begin(), discovered_types.end(), sub_type) == discovered_types.end())
+      {
+        response["error"] = "Topic " + topic + " exists, but not with requested type " + sub_type;
+        response["result"] = false;
+        RCLCPP_ERROR(get_logger(), "Failed to subscribe to topic: %s", response["error"].dump().c_str());
+        return true;
+      }
+    }
   } else {
-    std::map<std::string, std::vector<std::string>> topics = node_->get_topic_names_and_types();
-    if (topics.find(topic) == topics.end()) {
+    if (topic_it == topics.end()) {
       response["error"] = "Topic " + topic + " not found and no type specified";
       response["result"] = false;
       RCLCPP_ERROR(get_logger(), "Failed to subscribe to topic: %s", response["error"].dump().c_str());
       return true;
     }
-    sub_type = topics[topic][0];
+    sub_type = topic_it->second[0];
   }
+
   size_t history_depth = 10;
   if (msg.contains("history_depth") && msg["history_depth"].is_number()) {
     history_depth = msg["history_depth"];
